@@ -2,6 +2,7 @@ package org.example.cinemamanagement.tickets.config;
 
 import org.example.cinemamanagement.tickets.application.ports.SessionQueryPort;
 import org.example.cinemamanagement.tickets.application.ports.TicketRepositoryPort;
+import org.example.cinemamanagement.tickets.application.usecases.ListTicketsUseCase;
 import org.example.cinemamanagement.tickets.application.usecases.SellTicketUseCase;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,5 +16,10 @@ public class TicketBeansConfig {
             SessionQueryPort sessionQueryPort
     ) {
         return new SellTicketUseCase(ticketRepository, sessionQueryPort);
+    }
+
+    @Bean
+    public ListTicketsUseCase listTicketsUseCase(TicketRepositoryPort ticketRepository) {
+        return new ListTicketsUseCase(ticketRepository);
     }
 }

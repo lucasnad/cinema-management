@@ -9,7 +9,7 @@ public class Ticket {
     private final String seat;
     private final String customerName;
 
-    private Ticket(UUID id, UUID sessionId, String seat, String customerName) {
+    public Ticket(UUID id, UUID sessionId, String seat, String customerName) {
         if (sessionId == null) {
             throw new IllegalArgumentException("Sessão é obrigatória");
         }

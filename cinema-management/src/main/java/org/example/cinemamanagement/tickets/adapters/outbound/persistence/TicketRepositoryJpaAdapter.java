@@ -4,6 +4,7 @@ import org.example.cinemamanagement.tickets.application.ports.TicketRepositoryPo
 import org.example.cinemamanagement.tickets.domain.Ticket;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -30,5 +31,18 @@ public class TicketRepositoryJpaAdapter implements TicketRepositoryPort {
     @Override
     public boolean existsBySessionIdAndSeat(UUID sessionId, String seat) {
         return repository.existsBySessionIdAndSeat(sessionId, seat);
+    }
+
+    @Override
+    public List<Ticket> findAll() {
+        return repository.findAll()
+                .stream()
+                .map(e -> new Ticket(
+                        e.getId(),
+                        e.getSessionId(),
+                        e.getSeat(),
+                        e.getCustomerName()
+                ))
+                .toList();
     }
 }
