@@ -9,15 +9,15 @@ public class Ticket {
     private final String seat;
     private final String customerName;
 
-    public Ticket(UUID id, UUID sessionId, String seat, String customerName) {
+    private Ticket(UUID id, UUID sessionId, String seat, String customerName) {
         if (sessionId == null) {
-            throw new IllegalArgumentException("Ticket deve estar associado a uma sessão válida");
+            throw new IllegalArgumentException("Sessão é obrigatória");
         }
         if (seat == null || seat.isBlank()) {
-            throw new IllegalArgumentException("Campo 'seat' não pode ser nulo ou vazio");
+            throw new IllegalArgumentException("Assento é obrigatório");
         }
         if (customerName == null || customerName.isBlank()) {
-            throw new IllegalArgumentException("Campo 'customerName' não pode ser nulo ou vazio");
+            throw new IllegalArgumentException("Nome do cliente é obrigatório");
         }
 
         this.id = id;
@@ -26,19 +26,12 @@ public class Ticket {
         this.customerName = customerName;
     }
 
-    public UUID getId() {
-        return id;
+    public static Ticket newTicket(UUID sessionId, String seat, String customerName) {
+        return new Ticket(UUID.randomUUID(), sessionId, seat, customerName);
     }
 
-    public UUID getSessionId() {
-        return sessionId;
-    }
-
-    public String getSeat() {
-        return seat;
-    }
-
-    public String getCustomerName() {
-        return customerName;
-    }
+    public UUID getId() { return id; }
+    public UUID getSessionId() { return sessionId; }
+    public String getSeat() { return seat; }
+    public String getCustomerName() { return customerName; }
 }
