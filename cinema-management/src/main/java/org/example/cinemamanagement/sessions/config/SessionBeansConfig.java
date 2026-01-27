@@ -28,5 +28,4 @@ public class SessionBeansConfig {
         return new GetSessionUseCase(sessionRepositoryPort);
     }
 
-
 }
