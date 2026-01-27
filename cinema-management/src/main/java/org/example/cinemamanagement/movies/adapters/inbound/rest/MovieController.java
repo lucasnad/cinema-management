@@ -1,8 +1,7 @@
 package org.example.cinemamanagement.movies.adapters.inbound.rest;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
+import org.example.cinemamanagement.movies.adapters.inbound.rest.dto.CreateMovieRequest;
 import org.example.cinemamanagement.movies.application.usecases.CreateMovieUseCase;
 import org.example.cinemamanagement.movies.application.usecases.GetMovieUseCase;
 import org.example.cinemamanagement.movies.application.usecases.ListMoviesUseCase;
@@ -42,8 +41,4 @@ public class MovieController {
         return listUseCase.execute();
     }
 
-    record CreateMovieRequest(
-            @NotBlank String title,
-            @Min(1) int durationInMinutes
-    ) {}
 }
