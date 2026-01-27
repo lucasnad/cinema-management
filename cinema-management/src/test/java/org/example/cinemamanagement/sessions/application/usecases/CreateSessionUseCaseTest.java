@@ -1,7 +1,7 @@
 // java
 package org.example.cinemamanagement.sessions.application.usecases;
 
-import org.example.cinemamanagement.movies.application.ports.MovieQueryPort;
+import org.example.cinemamanagement.sessions.application.ports.MovieQueryPort;
 import org.example.cinemamanagement.sessions.application.ports.SessionRepositoryPort;
 import org.example.cinemamanagement.sessions.domain.Session;
 import org.junit.jupiter.api.Test;
