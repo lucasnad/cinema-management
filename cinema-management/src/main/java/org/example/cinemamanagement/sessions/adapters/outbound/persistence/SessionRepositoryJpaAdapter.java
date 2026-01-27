@@ -48,6 +48,4 @@ public class SessionRepositoryJpaAdapter implements SessionRepositoryPort {
         return repository.findById(id)
                 .map(e -> new Session(e.getId(), e.getMovieId(), e.getRoom(), e.getStartsAt()));
     }
-
-
 }
