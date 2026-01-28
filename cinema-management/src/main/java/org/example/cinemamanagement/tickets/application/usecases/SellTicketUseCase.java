@@ -23,7 +23,8 @@ public class SellTicketUseCase {
         var session = sessionQuery.getSession(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada"));
 
-        if (session.startsAt().isBefore(LocalDateTime.now())) {
+        //agora não é antes do horário da sessão
+        if (!LocalDateTime.now().isBefore(session.startsAt())) {
             throw new IllegalStateException("Não é possível vender ingresso para sessão já iniciada");
         }
 
