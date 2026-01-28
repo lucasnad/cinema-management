@@ -19,11 +19,11 @@ public class CreateSessionUseCase {
     public Session execute(UUID movieId, String room, LocalDateTime startsAt) {
 
         if (!movieQueryPort.movieExists(movieId)) {
-            throw new IllegalArgumentException("Filme não encontrado");
+            throw new IllegalStateException("Filme não encontrado");
         }
 
         if(startsAt.isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Sessão não pode ser criada no passado");
+            throw new IllegalStateException("Sessão não pode ser criada no passado");
         }
 
         Session session = new Session(UUID.randomUUID(), movieId, room, startsAt);
