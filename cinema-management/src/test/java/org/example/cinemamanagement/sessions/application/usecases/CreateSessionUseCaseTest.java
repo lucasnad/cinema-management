@@ -13,16 +13,23 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CreateSessionUseCaseTest {
 
+    /**
+     * Caso de uso pra demonstrar como está fácil testar devido ao baixo acoplamento e abstrações.
+     * Só precisa mockar as portas (interfaces) que são dependências do caso de uso.
+     */
     @Test
     void deveCriarSessaoQuandoFilmeExiste() {
-        // simula persistencia: retorna o próprio objeto salvo
+        // repoFake usando Mockito.
         SessionRepositoryPort repositoryFake = Mockito.mock(SessionRepositoryPort.class);
+
+        // devolve ele mesmo
         Mockito.when(repositoryFake.save(Mockito.any(Session.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // filme sempre existe
-        MovieQueryPort movieQueryFake = _ -> true;
+        // Mock que sempre retorna true pra indicar que o filme existe
+        MovieQueryPort movieQueryFake = movieId -> true;
 
+        // So mockei repo e porta e pronto
         CreateSessionUseCase useCase = new CreateSessionUseCase(repositoryFake, movieQueryFake);
 
         UUID movieId = UUID.randomUUID();
@@ -33,20 +40,23 @@ class CreateSessionUseCaseTest {
         assertEquals("Sala 1", session.getRoom());
     }
 
+    /**
+     * Teste negativo, onde o filme não existe.
+     */
     @Test
     void deveLancarErroQuandoFilmeNaoExiste() {
         SessionRepositoryPort repositoryFake = Mockito.mock(SessionRepositoryPort.class);
         Mockito.when(repositoryFake.save(Mockito.any(Session.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // filme nao existe
-        MovieQueryPort movieQueryFake = _ -> false;
+        // Filme não existe
+        MovieQueryPort movieQueryFake = movieId -> false;
 
         CreateSessionUseCase useCase = new CreateSessionUseCase(repositoryFake, movieQueryFake);
 
         UUID movieId = UUID.randomUUID();
 
-        Exception ex = assertThrows(IllegalArgumentException.class, () ->
+        Exception ex = assertThrows(IllegalStateException.class, () ->
                 useCase.execute(movieId, "Sala 1", LocalDateTime.now().plusDays(1))
         );
 
