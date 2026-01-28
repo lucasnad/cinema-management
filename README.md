@@ -106,11 +106,12 @@ As entidades de domínio concentram regras e validações essenciais, garantindo
 ## Alternativas consideradas
 Durante a definição da arquitetura, foram consideradas abordagens mais complexas, porém descartadas devido ao escopo acadêmico do projeto e ao foco na organização interna do código.
 
-| Alternativa | Motivo para não usar |
-|-------------|----------------------|
-| Microserviços | Aumentaria a complexidade de infraestrutura sem agregar valor ao objetivo didático do projeto |
-| Arquitetura em camadas tradicional | Geraria maior acoplamento entre domínio e infraestrutura |
-| CRUD anêmico | Não evidencia regras de negócio nem modelagem de domínio |
+| Alternativa | Motivo para não usar                                                                                                                                                                                                                        |
+|-------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| SOA (Service-Oriented Architecture) | Exigiria comunicação entre serviços separados, aumentando a complexidade de implantação e integração, o que foge do escopo de um projeto individual. Do ponto de vista operacional seria muito complexo pra resolver um problema simples.   |
+| Microserviços | Introduz complexidade operacional (deploy, rede, resiliência) desnecessária para o tamanho do sistema                                                                                                                                       |
+| Arquitetura em camadas tradicional | Aumenta o acoplamento entre regras de negócio e infraestrutura, dificultando testes e evolução do domínio  (controller -> service -> repository -> banco). Classe service acaba concentrando demais funcionalidade e acopla muito o sistema |
+| CRUD anêmico | É quando a regra fica toda em serviços. Isso deixa as entidades sem comportamento. Da forma que fiz o dominío tem força e independência.                                                                                                    |
 
 ## Impacto das decisões
 As escolhas arquiteturais resultaram em:
