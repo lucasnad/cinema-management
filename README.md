@@ -156,7 +156,7 @@ Executando na sua IDE
 .\cinema-management\mvnw spring-boot:run
 ```
 Observações
-- O banco H2 utilizado pelo projeto inicia em memória, dados são persistidos em um arquivo gerado pelo H2.
+- O banco H2 utilizado pelo projeto inicia em memória, dados não são persistidos.
 
 ### Endpoints disponíveis
 
