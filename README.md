@@ -1,8 +1,11 @@
 ﻿# Sistema de Gestão de Cinema
+
 ## Descrição do problema
+
 O sistema tem como objetivo gerenciar a programação de um cinema, permitindo o cadastro de filmes e a criação de sessões associadas a esses filmes.  
 Ele representa a base para um sistema de venda de ingressos, focando na organização interna do domínio e nas regras de negócio relacionadas às sessões.
 O projeto foi desenvolvido com foco em arquitetura de software, priorizando separação de responsabilidades, modularidade e baixo acoplamento.
+
 ---
 ## Objetivo do sistema
 O sistema permite:
@@ -14,6 +17,7 @@ O sistema permite:
 - Impedir venda de assentos duplicados para a mesma sessão
 - Impedir venda de ingressos para sessões já iniciadas
 - O foco está na modelagem correta do domínio e na organização arquitetural, não em funcionalidades completas de negócio (como pagamento).
+
 ---
 ## Estilo arquitetural adotado
 O sistema foi desenvolvido como um **monólito modular**, utilizando:
