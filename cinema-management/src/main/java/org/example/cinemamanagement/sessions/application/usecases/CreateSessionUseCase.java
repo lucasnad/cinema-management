@@ -22,6 +22,10 @@ public class CreateSessionUseCase {
             throw new IllegalArgumentException("Filme não encontrado");
         }
 
+        if(startsAt.isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Sessão não pode ser criada no passado");
+        }
+
         Session session = new Session(UUID.randomUUID(), movieId, room, startsAt);
 
         return sessionRepository.save(session);
