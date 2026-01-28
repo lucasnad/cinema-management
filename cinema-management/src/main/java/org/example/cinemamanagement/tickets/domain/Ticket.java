@@ -13,16 +13,22 @@ public class Ticket {
         if (sessionId == null) {
             throw new IllegalArgumentException("Sessão é obrigatória");
         }
+
         if (seat == null || seat.isBlank()) {
             throw new IllegalArgumentException("Assento é obrigatório");
         }
+
+        if(!seat.matches("[A-Z][0-9]{1,2}")) {
+            throw new IllegalArgumentException("Assento inválido. Exemplos: A10, B5, C23");
+        }
+
         if (customerName == null || customerName.isBlank()) {
             throw new IllegalArgumentException("Nome do cliente é obrigatório");
         }
 
         this.id = id;
         this.sessionId = sessionId;
-        this.seat = seat;
+        this.seat = seat.toUpperCase();
         this.customerName = customerName;
     }
 
