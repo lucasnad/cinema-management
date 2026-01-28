@@ -1,4 +1,3 @@
-// java
 package org.example.cinemamanagement.sessions.application.usecases;
 
 import org.example.cinemamanagement.sessions.application.ports.MovieQueryPort;
@@ -22,7 +21,7 @@ class CreateSessionUseCaseTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // filme sempre existe
-        MovieQueryPort movieQueryFake = movieId -> true;
+        MovieQueryPort movieQueryFake = _ -> true;
 
         CreateSessionUseCase useCase = new CreateSessionUseCase(repositoryFake, movieQueryFake);
 
@@ -41,7 +40,7 @@ class CreateSessionUseCaseTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // filme nao existe
-        MovieQueryPort movieQueryFake = movieId -> false;
+        MovieQueryPort movieQueryFake = _ -> false;
 
         CreateSessionUseCase useCase = new CreateSessionUseCase(repositoryFake, movieQueryFake);
 
