@@ -1,0 +1,28 @@
+# =============================================================================
+# docker-compose.yml — Cinema Management API + Nginx
+# =============================================================================
+#
+# Arquitetura:
+#   Cliente → Nginx (porta 80/443) → Spring Boot (porta 8080, interna)
+#
+# =============================================================================
+
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cinema-management-app
+    ports:
+      - "8080:8080"
+    networks:
+      - cinema-network
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    restart: unless-stopped
+
+networks:
+  cinema-network:
+    driver: bridge
+
