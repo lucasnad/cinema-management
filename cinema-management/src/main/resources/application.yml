@@ -16,6 +16,9 @@ spring:
     console:
       enabled: true
       path: /h2-console
+  output:
+    ansi:
+      enabled: ALWAYS
 
 # ================= JWT =================
 jwt:
