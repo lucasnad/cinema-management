@@ -9,20 +9,31 @@
 
 services:
 
-  app:
+  api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: cinema-management-app
+    container_name: cinema-management-api
     ports:
-      - "8080:8080"
+      - "8080"
     networks:
       - cinema-network
     environment:
       - SPRING_PROFILES_ACTIVE=docker
     restart: unless-stopped
 
+  nginx:
+    build: ./nginx
+    container_name: cinema-nginx
+    ports:
+      - "80:80"
+    networks:
+      - cinema-network
+    depends_on:
+      - api
+    volumes:
+      - ./nginx/logs:/var/log/nginx
+
 networks:
   cinema-network:
     driver: bridge
-
