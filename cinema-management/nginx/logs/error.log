@@ -1,0 +1,1 @@
+2026/03/01 14:44:57 [error] 21#21: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 172.20.0.1, server: localhost, request: "HEAD / HTTP/1.1", upstream: "http://172.20.0.2:8080/", host: "localhost"

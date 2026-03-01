@@ -15,7 +15,7 @@ services:
       dockerfile: Dockerfile
     container_name: cinema-management-api
     ports:
-      - "8080"
+      - "8080" #exposta apenas internamente, Nginx irá redirecionar
     networks:
       - cinema-network
     environment:
@@ -26,7 +26,7 @@ services:
     build: ./nginx
     container_name: cinema-nginx
     ports:
-      - "80:80"
+      - "80:80" #exposta interna e externamente
     networks:
       - cinema-network
     depends_on:

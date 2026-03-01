@@ -22,10 +22,14 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
-                .headers(
-                        headers -> headers.frameOptions(
-                        HeadersConfigurer.FrameOptionsConfig::disable)
-                ) // Necessário pro H2-Console funcionar
+                // Desativa todos os headers padrão do Spring Security (X-XSS-Protection,
+                // X-Frame-Options, X-Content-Type-Options, etc.) para evitar duplicação,
+                // pois o Nginx já é responsável por adicionar esses headers.
+                .headers(headers -> headers
+                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::disable) // Necessário pro H2-Console funcionar
+                        .xssProtection(HeadersConfigurer.XXssConfig::disable)
+                        .contentTypeOptions(HeadersConfigurer.ContentTypeOptionsConfig::disable)
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
