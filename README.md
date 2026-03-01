@@ -466,36 +466,6 @@ curl -k https://localhost/sessions
 
 ---
 
-### 12. Fluxo completo (criar filme → criar sessão → comprar ingresso)
-
-```bash
-# 1. Login
-TOKEN=$(curl -k -s -X POST "https://localhost/auth/login?username=admin")
-
-# 2. Criar filme
-curl -k -X POST https://localhost/movies \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Interestelar", "duration": 169}'
-
-# 3. Criar sessão para o filme (ajuste o movieId conforme retorno)
-curl -k -X POST https://localhost/sessions \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"movieId": 1, "room": "Sala 1", "startsAt": "2026-12-31T20:00:00"}'
-
-# 4. Comprar ingresso (ajuste o sessionId conforme retorno)
-curl -k -X POST https://localhost/tickets \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"sessionId": 1, "seat": "A1", "customerName": "Lucas"}'
-
-# 5. Listar ingressos
-curl -k -H "Authorization: Bearer $TOKEN" https://localhost/tickets
-```
-
----
-
 ## Arquivo `nginx.conf` comentado
 
 O arquivo `nginx/nginx.conf` está **inteiramente comentado** linha a linha, explicando cada diretiva e sua função. Os comentários cobrem:
