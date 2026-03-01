@@ -107,33 +107,17 @@ Cada módulo possui:
 ### Diagrama da infraestrutura
 
 ```
-    ┌──────────-┐        ┌──────────────────┐        ┌───────────────────┐
-    │  Cliente  │──:80──▶│  Nginx (reverse  │──:8080▶│  Spring Boot API  │
-    │ (browser/ │──:443─▶│  proxy + SSL)    │        │  (cinema-api)     │
-    │  curl)    │        │                  │        │  H2 em memória    │
-    └──────────-┘        └──────────────────┘        └───────────────────┘
+    ┌───────────┐        ┌──────────────────┐        ┌───────────────────┐
+    │  Cliente   │──:80──▶│  Nginx (reverse  │──:8080▶│  Spring Boot API  │
+    │ (browser/  │──:443─▶│  proxy + SSL)    │        │  (cinema-api)     │
+    │  curl)     │        │                  │        │  H2 em memória    │
+    └───────────┘        └──────────────────┘        └───────────────────┘
                                │
                       docker-compose.yml
                       rede: cinema-network
 ```
 
-O **Nginx** atua como ponto de entrada único do sistema, recebendo todas as requisições dos clientes e encaminhando-as para a API Spring Boot. Ambos os serviços rodam em containers Docker orquestrados via `docker-compose.yml` em uma rede bridge isolada.
-
-### Funcionalidades implementadas no Nginx
-
-| #  | Funcionalidade | Descrição |
-|----|---------------|-----------|
-| 1  | **Proxy Reverso** | Encaminha todas as requisições para a API Spring Boot (porta 8080 interna) |
-| 2  | **HTTPS/SSL** | Certificado self-signed gerado automaticamente no build do container (TLSv1.2 e TLSv1.3) |
-| 3  | **Redirect HTTP → HTTPS** | Requisições na porta 80 são redirecionadas (301) para HTTPS na porta 443 |
-| 4  | **Rate Limiting** | 5 req/s por IP, burst de 10, retorna HTTP 429 ao exceder |
-| 5  | **Compressão Gzip** | Comprime respostas `application/json` e `text/plain` |
-| 6  | **Cache de respostas** | GET/HEAD cacheados por 10s; requisições com `Authorization` bypass o cache |
-| 7  | **Headers de segurança** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block` |
-| 8  | **Limite de payload** | Body máximo de 1MB; retorna HTTP 413 se exceder |
-| 9  | **Páginas de erro customizadas** | HTML customizado para 404 e 50x |
-| 10 | **Logs estruturados** | Formato: IP, método, URI, status, tempo de resposta do upstream, status do cache |
-| 11 | **Logs no stdout/stderr** | Visíveis via `docker logs cinema-nginx` |
+O **Nginx** atua como ponto de entrada único do sistema, recebendo todas as requisições dos clientes e encaminhando-as para a API Spring Boot. A porta 8080 da API **não é exposta ao host** — o acesso é feito exclusivamente pelo Nginx (portas 80/443). Ambos os serviços rodam em containers Docker orquestrados via `docker-compose.yml` em uma rede bridge isolada.
 
 ### Docker
 
@@ -148,7 +132,7 @@ Multi-stage build:
 - Gera certificado SSL self-signed automaticamente via `openssl`
 
 #### docker-compose.yml
-- **api**: container Spring Boot, porta 8080 exposta apenas internamente
+- **api**: container Spring Boot, porta 8080 exposta **apenas internamente** na rede Docker (não acessível pelo host)
 - **nginx**: container Nginx, portas 80 e 443 expostas para o host
 - Rede bridge `cinema-network` para comunicação interna
 - Nginx depende (`depends_on`) da API para garantir ordem de inicialização
@@ -254,20 +238,16 @@ docker compose down
 - Variável de ambiente `JAVA_HOME` apontando para o JDK 25
 - O banco H2 é iniciado automaticamente em memória
 
-#### Via terminal (Windows/PowerShell)
+#### Via terminal
 ```bash
 cd cinema-management
-.\mvnw spring-boot:run
+./mvnw spring-boot:run
 ```
 
 #### Via IDE (IntelliJ IDEA)
 1. Abra o projeto como projeto Maven (File > Open...)
 2. Configure o JDK 25 em File > Project Structure > Project SDK
 3. Execute `CinemaManagementApplication.java`
-
-#### Via IDE (VS Code)
-1. Instale "Language Support for Java" e "Spring Boot Extension Pack"
-2. Execute `CinemaManagementApplication.java` pelo botão Run
 
 ---
 
@@ -286,110 +266,50 @@ cd cinema-management
 
 ---
 
-## Testando os requisitos — Comandos e evidências
+## Requisitos implementados — Testes e evidências
 
-> **Pré-requisito**: suba os containers com `docker compose up --build` e aguarde a mensagem de inicialização.  
+> **Pré-requisito**: suba os containers com `docker compose up --build` e aguarde a inicialização.
 > Todos os comandos usam `-k` para aceitar o certificado self-signed.
 
 ---
 
-### 1. Proxy Reverso
+### 3.1 — Reverse Proxy
 
-Verifica que o Nginx encaminha a requisição para a API Spring Boot.
+**O que foi feito:** O Nginx escuta nas portas 80 e 443 e encaminha todas as requisições para a API Spring Boot na porta 8080 interna. A porta 8080 **não é exposta ao host** no `docker-compose.yml` — o acesso em produção é feito exclusivamente pelo proxy.
 
+**Onde está configurado:** `nginx.conf` → bloco `upstream cinema-api` + `proxy_pass`
+
+**Teste — API funciona via localhost (pelo Nginx):**
 ```bash
 curl -k https://localhost/movies
 ```
 
-**Esperado**: resposta JSON vinda da API (lista de filmes, possivelmente `[]` se vazia).
-
----
-
-### 2. HTTPS / SSL (Certificado Self-Signed)
-
+**Teste — Porta 8080 não acessível diretamente pelo host:**
 ```bash
-curl -kv https://localhost/movies 2>&1 | grep -E "SSL|TLS|subject|issuer"
+# Deve falhar com "Connection refused", pois a porta 8080 não está mapeada no docker-compose
+curl http://localhost:8080/movies
 ```
 
-**Esperado**: informações do handshake TLS mostrando o certificado self-signed:
+**Evidência esperada:**
 ```
-* SSL connection using TLSv1.3
-* Server certificate:
-*  subject: C=BR; ST=SP; L=SaoPaulo; O=CinemaManagement; CN=localhost
+[]                              (via https://localhost — funciona pelo Nginx)
+curl: (7) Failed to connect     (via localhost:8080 — porta não exposta)
 ```
 
 ---
 
-### 3. Redirect HTTP → HTTPS
+### 3.2 — Headers de Segurança
 
+**O que foi feito:** O Nginx adiciona 3 headers de segurança em todas as respostas (inclusive em erros, via `always`).
+
+**Onde está configurado:** `nginx.conf` → diretivas `add_header` no bloco `server` (porta 443)
+
+**Teste:**
 ```bash
-curl -v http://localhost/movies 2>&1 | grep -E "< HTTP|Location"
+curl -kI https://localhost/movies
 ```
 
-**Esperado**:
-```
-< HTTP/1.1 301 Moved Permanently
-< Location: https://localhost/movies
-```
-
----
-
-### 4. Rate Limiting (5 req/s + burst 10)
-
-Usando o script de teste incluído no projeto:
-```bash
-bash test-rate-limit.sh
-```
-
-Ou manualmente, disparando 20 requisições simultâneas:
-```bash
-for i in $(seq 1 20); do curl -k -s -o /dev/null -w "Req $i: HTTP %{http_code}\n" https://localhost/movies & done; wait
-```
-
-**Esperado**: as primeiras ~11 requisições passam (HTTP 200 ou 401), as demais retornam **HTTP 429** (Too Many Requests).
-
----
-
-### 5. Compressão Gzip
-
-```bash
-curl -k -H "Accept-Encoding: gzip" -I https://localhost/movies
-```
-
-**Esperado**: header `Content-Encoding: gzip` na resposta.
-
----
-
-### 6. Cache de Respostas (GET)
-
-**Primeira requisição (MISS):**
-```bash
-curl -k -I https://localhost/movies 2>&1 | grep X-Cache-Status
-```
-**Esperado**: `X-Cache-Status: MISS`
-
-**Segunda requisição (HIT):**
-```bash
-curl -k -I https://localhost/movies 2>&1 | grep X-Cache-Status
-```
-**Esperado**: `X-Cache-Status: HIT`
-
-**Com token JWT (BYPASS — requisições autenticadas não usam cache):**
-```bash
-TOKEN=$(curl -k -s -X POST "https://localhost/auth/login?username=admin")
-curl -k -I -H "Authorization: Bearer $TOKEN" https://localhost/movies 2>&1 | grep X-Cache-Status
-```
-**Esperado**: `X-Cache-Status: BYPASS`
-
----
-
-### 7. Headers de Segurança
-
-```bash
-curl -kI https://localhost/movies 2>&1 | grep -E "X-Content-Type|X-Frame|X-XSS"
-```
-
-**Esperado**:
+**Evidência esperada (nos headers da resposta):**
 ```
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
@@ -398,9 +318,36 @@ X-XSS-Protection: 1; mode=block
 
 ---
 
-### 8. Limite de Payload (1MB)
+### 3.3 — Rate Limiting
 
-Gera um payload maior que 1MB e envia via POST:
+**O que foi feito:** Rate limit de 5 req/s por IP com burst de 10. Requisições excedentes recebem HTTP 429.
+
+**Onde está configurado:** `nginx.conf` → `limit_req_zone` (zona `api_limit`) + `limit_req` no `location /`
+
+**Teste — disparar 20 requisições simultâneas:**
+```bash
+for i in $(seq 1 20); do
+  curl -k -s -o /dev/null -w "Req $i: HTTP %{http_code}\n" https://localhost/movies &
+done
+wait
+```
+
+**Ou via script bash incluído no projeto:**
+```bash
+bash test-rate-limit.sh
+```
+
+**Evidência esperada:** As primeiras ~11 requisições passam (HTTP 200 ou 401), as demais retornam **HTTP 429**.
+
+---
+
+### 3.4 — Limite de Payload (1MB)
+
+**O que foi feito:** `client_max_body_size 1m` — requisições com body maior que 1MB são rejeitadas com HTTP 413.
+
+**Onde está configurado:** `nginx.conf` → `client_max_body_size` no bloco `server`
+
+**Teste — enviar payload > 1MB:**
 ```bash
 # Gera arquivo de ~2MB
 dd if=/dev/zero bs=1M count=2 2>/dev/null | base64 > /tmp/big_payload.txt
@@ -411,58 +358,200 @@ curl -k -X POST https://localhost/movies \
   -w "\nHTTP Code: %{http_code}\n"
 ```
 
-**Esperado**: **HTTP 413** (Request Entity Too Large).
+**Evidência esperada:**
+```
+HTTP Code: 413
+```
 
 ---
 
-### 9. Páginas de Erro Customizadas
+### 3.5 — Compressão Gzip
 
-**Erro 404 (rota inexistente):**
+**O que foi feito:** Gzip ativado para `application/json` e `text/plain`. Header `Vary: Accept-Encoding` adicionado automaticamente.
+
+**Onde está configurado:** `nginx.conf` → `gzip on`, `gzip_types`, `gzip_vary`
+
+**Teste:**
+```bash
+curl -k -H "Accept-Encoding: gzip" -I https://localhost/movies
+```
+
+**Evidência esperada (nos headers da resposta):**
+```
+Content-Encoding: gzip
+```
+
+---
+
+### 3.6 — Log Estruturado
+
+**O que foi feito:** Log customizado com IP, método HTTP, URI, status, tempo de resposta do upstream e status do cache.
+
+**Onde está configurado:** `nginx.conf` → `log_format structured`
+
+**Formato:**
+```
+IP: $remote_addr | Metódo: $request_method | URI: $request_uri | Status: $status | Tempo de resposta: ${upstream_response_time}s | Cache: $upstream_cache_status
+```
+
+**Teste — ver logs reais:**
+```bash
+# Primeiro faça uma requisição para gerar log
+curl -k https://localhost/movies
+
+# Depois visualize os logs do container
+docker logs cinema-nginx --tail 5
+```
+
+**Evidência esperada:**
+```
+IP: 172.18.0.1 | Metódo: GET | URI: /movies | Status: 200 | Tempo de resposta: 0.032s | Cache: MISS
+```
+
+---
+
+### 4.1 — Cache de GET (requisito intermediário)
+
+**O que foi feito:** Respostas GET/HEAD são cacheadas por 10 segundos. Requisições com header `Authorization` fazem bypass do cache (não cacheia dados autenticados).
+
+**Onde está configurado:** `nginx.conf` → `proxy_cache_path`, `proxy_cache`, `proxy_cache_valid 200 10s`, `proxy_cache_bypass $http_authorization`
+
+**Teste — MISS → HIT:**
+```bash
+# Primeira requisição (MISS — ainda não está em cache)
+curl -kI https://localhost/movies 2>&1 | grep X-Cache-Status
+
+# Segunda requisição (HIT — servida do cache)
+curl -kI https://localhost/movies 2>&1 | grep X-Cache-Status
+```
+
+**Teste — requisição autenticada faz BYPASS:**
+```bash
+TOKEN=$(curl -k -s -X POST "https://localhost/auth/login?username=admin")
+
+curl -kI -H "Authorization: Bearer $TOKEN" https://localhost/movies 2>&1 | grep X-Cache-Status
+```
+
+**Evidência esperada:**
+```
+X-Cache-Status: MISS
+X-Cache-Status: HIT
+X-Cache-Status: BYPASS
+```
+
+---
+
+### 4.3 — Redirecionamento HTTP → HTTPS (requisito intermediário)
+
+**O que foi feito:** Servidor na porta 80 retorna `301 Moved Permanently` redirecionando para HTTPS. Certificado SSL self-signed gerado automaticamente no build do container Nginx.
+
+**Onde está configurado:**
+- `nginx.conf` → bloco `server` porta 80 com `return 301 https://...`
+- `nginx.conf` → bloco `server` porta 443 com `ssl_certificate` e `ssl_protocols TLSv1.2 TLSv1.3`
+- `nginx/Dockerfile` → geração do certificado via `openssl`
+
+**Teste — redirect 301:**
+```bash
+curl -v http://localhost/movies 2>&1 | grep -E "< HTTP|Location"
+```
+
+**Evidência esperada:**
+```
+< HTTP/1.1 301 Moved Permanently
+< Location: https://localhost/movies
+```
+
+**Teste — handshake SSL/TLS:**
+```bash
+curl -kv https://localhost/movies 2>&1 | grep -E "SSL|TLS|subject|issuer"
+```
+
+**Evidência esperada:**
+```
+* SSL connection using TLSv1.3
+* subject: C=BR; ST=SP; L=SaoPaulo; O=CinemaManagement; CN=localhost
+```
+
+---
+
+### 4.4 — Custom Error Pages (requisito intermediário)
+
+**O que foi feito:** Páginas HTML customizadas para erros 404 e 50x (500, 502, 503, 504).
+
+**Onde está configurado:** `nginx.conf` → `error_page` + `location ^~ /error_pages/` + arquivos em `nginx/error_pages/`
+
+**Teste — erro 404:**
 ```bash
 curl -k https://localhost/rota-inexistente
 ```
-**Esperado**: HTML customizado com `<h1>404</h1>` e "Página não encontrada".
 
-**Erro 500 (endpoint de teste):**
+**Evidência esperada:**
+```html
+<h1>404</h1>
+<p>Página não encontrada.</p>
+```
+
+**Teste — erro 500 (endpoint de teste):**
 ```bash
 curl -k https://localhost/test/500
 ```
-**Esperado**: HTML customizado com `<h1>50x</h1>` e "Erro interno do servidor".
 
----
-
-### 10. Logs Estruturados
-
-```bash
-docker logs cinema-nginx 2>&1 | tail -5
-```
-
-**Esperado**: logs no formato estruturado:
-```
-IP: 172.18.0.1 | Metódo: GET | URI: /movies | Status: 200 | Tempo de resposta: 0.045s | Cache: HIT
+**Evidência esperada:**
+```html
+<h1>50x</h1>
+<p>Erro interno do servidor. Tente novamente em instantes.</p>
 ```
 
 ---
 
-### 11. Autenticação JWT (fluxo completo)
+## Resumo dos requisitos implementados
 
-**Login (obter token):**
+| Requisito | Status | Seção no nginx.conf |
+|-----------|:------:|---------------------|
+| **3.1** Reverse Proxy | ✅ | `upstream` + `proxy_pass` |
+| **3.2** Headers de Segurança | ✅ | `add_header X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection` |
+| **3.3** Rate Limiting (5r/s, burst 10) | ✅ | `limit_req_zone` + `limit_req` |
+| **3.4** Limite de Payload (1MB) | ✅ | `client_max_body_size 1m` |
+| **3.5** Compressão Gzip | ✅ | `gzip on` + `gzip_types` |
+| **3.6** Log Estruturado | ✅ | `log_format structured` |
+| **4.1** Cache de GET (intermediário) | ✅ | `proxy_cache_path` + `proxy_cache` + `proxy_cache_bypass` |
+| **4.3** HTTPS / Redirect HTTP→HTTPS (intermediário) | ✅ | `return 301 https://` + `ssl_certificate` |
+| **4.4** Custom Error Pages (requisito intermediário) | ✅ | `error_page` + `location /error_pages/` |
+
+---
+
+## Fluxo completo de teste (criar filme → criar sessão → comprar ingresso)
+
+> As entidades usam **UUID** como identificador. Os comandos abaixo capturam os IDs automaticamente com `jq`.
+
 ```bash
+# 1. Login (obter token JWT)
 TOKEN=$(curl -k -s -X POST "https://localhost/auth/login?username=admin")
-echo $TOKEN
-```
+echo "Token: $TOKEN"
 
-**Acessar endpoint protegido com token:**
-```bash
-curl -k -H "Authorization: Bearer $TOKEN" https://localhost/sessions
-```
-**Esperado**: resposta JSON (lista de sessões).
+# 2. Criar filme (captura o UUID retornado)
+MOVIE_ID=$(curl -k -s -X POST https://localhost/movies \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Interestelar", "durationInMinutes": 169}' | jq -r '.id')
+echo "Movie ID: $MOVIE_ID"
 
-**Acessar endpoint protegido sem token:**
-```bash
-curl -k https://localhost/sessions
+# 3. Criar sessão para o filme (usa o UUID do filme)
+SESSION_ID=$(curl -k -s -X POST https://localhost/sessions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"movieId\": \"$MOVIE_ID\", \"room\": \"Sala 1\", \"startsAt\": \"2026-12-31T20:00:00\"}" | jq -r '.id')
+echo "Session ID: $SESSION_ID"
+
+# 4. Comprar ingresso (usa o UUID da sessão)
+curl -k -s -X POST https://localhost/tickets \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"sessionId\": \"$SESSION_ID\", \"seat\": \"A1\", \"customerName\": \"Lucas\"}" | jq
+
+# 5. Listar ingressos
+curl -k -s -H "Authorization: Bearer $TOKEN" https://localhost/tickets | jq
 ```
-**Esperado**: **HTTP 401** (Unauthorized).
 
 ---
 
