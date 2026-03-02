@@ -3,23 +3,43 @@
 # =============================================================================
 #
 # Arquitetura:
-#   Cliente → Nginx (porta 80/443) → Spring Boot (porta 8080, interna)
+#   Cliente → Nginx (porta 80/443) → api1:8080 \
+#                                  → api2:8080 /  (load balancing least_conn)
 #
+# As duas instâncias compartilham o mesmo arquivo H2 via volume Docker,
+# garantindo que ambas enxerguem os mesmos dados.
 # =============================================================================
 
 services:
 
-  api:
+  api1:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: cinema-management-api
+    container_name: cinema-management-api1
     ports:
-      - "8080" #exposta apenas internamente, Nginx irá redirecionar
+      - "8080" # exposta apenas internamente
     networks:
       - cinema-network
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+    volumes:
+      - h2-data:/data/h2
+    restart: unless-stopped
+
+  api2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cinema-management-api2
+    ports:
+      - "8080" # exposta apenas internamente
+    networks:
+      - cinema-network
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    volumes:
+      - h2-data:/data/h2
     restart: unless-stopped
 
   nginx:
@@ -31,10 +51,14 @@ services:
     networks:
       - cinema-network
     depends_on:
-      - api
+      - api1
+      - api2
     volumes:
       - ./nginx/logs:/var/log/nginx
 
 networks:
   cinema-network:
     driver: bridge
+
+volumes:
+  h2-data: # Volume compartilhado entre api1 e api2 para o banco H2

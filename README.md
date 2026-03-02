@@ -108,13 +108,14 @@ Cada módulo possui:
 
 ```
     ┌───────────┐        ┌──────────────────┐        ┌───────────────────┐
-    │  Cliente   │──:80──▶│  Nginx (reverse  │──:8080▶│  Spring Boot API  │
-    │ (browser/  │──:443─▶│  proxy + SSL)    │        │  (cinema-api)     │
-    │  curl)     │        │                  │        │  H2 em memória    │
-    └───────────┘        └──────────────────┘        └───────────────────┘
-                               │
-                      docker-compose.yml
-                      rede: cinema-network
+    │  Cliente  │──:80──▶│                  │──:8080▶│  api1 (Spring)    │
+    │ (browser/ │──:443─▶│  Nginx (reverse  │        ├───────────────────┤
+    │  curl)    │        │  proxy + SSL +   │──:8080▶│  api2 (Spring)    │
+    └───────────┘        │  load balancer)  │        └───────────────────┘
+                         └──────────────────┘              │        │
+                               │                       H2 file  H2 file
+                      docker-compose.yml                └────┬────┘
+                      rede: cinema-network              volume h2-data
 ```
 
 O **Nginx** atua como ponto de entrada único do sistema, recebendo todas as requisições dos clientes e encaminhando-as para a API Spring Boot. A porta 8080 da API **não é exposta ao host** — o acesso é feito exclusivamente pelo Nginx (portas 80/443). Ambos os serviços rodam em containers Docker orquestrados via `docker-compose.yml` em uma rede bridge isolada.
@@ -132,10 +133,11 @@ Multi-stage build:
 - Gera certificado SSL self-signed automaticamente via `openssl`
 
 #### docker-compose.yml
-- **api**: container Spring Boot, porta 8080 exposta **apenas internamente** na rede Docker (não acessível pelo host)
+- **api1** e **api2**: duas instâncias do Spring Boot, porta 8080 exposta **apenas internamente** na rede Docker
+- Ambas compartilham o volume `h2-data` montado em `/data/h2`, onde fica o arquivo do banco H2 (`AUTO_SERVER=TRUE` permite acesso simultâneo)
 - **nginx**: container Nginx, portas 80 e 443 expostas para o host
 - Rede bridge `cinema-network` para comunicação interna
-- Nginx depende (`depends_on`) da API para garantir ordem de inicialização
+- Nginx depende (`depends_on`) de `api1` e `api2`
 
 ---
 
@@ -291,6 +293,7 @@ curl http://localhost:8080/movies
 ```
 
 **Evidência esperada:**
+
 ![req-3.1.png](cinema-management/docs/evidencias/req-3.1.png)
 
 ---
@@ -404,7 +407,8 @@ docker logs cinema-nginx --tail 5
 
 **Evidência esperada:**
 ```
-IP: 172.20.0.1 | Metódo: GET | URI: /movies | Status: 200 | Tempo de resposta: 0.032s | Cache: MISS
+IP: 172.20.0.1 | Metódo: GET | URI: /movies | Status: 200 | Tempo de resposta: 0.032s | Cache: MISS | Instância: 172.20.0.2:8080
+IP: 172.20.0.1 | Metódo: GET | URI: /movies | Status: 200 | Tempo de resposta: CACHED | Cache: HIT | Instância: CACHED
 ```
 ![req-3.6.1.png](cinema-management/docs/evidencias/req-3.6.1.png)
 ![req-3.6.2.png](cinema-management/docs/evidencias/req-3.6.2.png)
@@ -441,6 +445,7 @@ X-Cache-Status: BYPASS
 ![req-4.1.1.png](cinema-management/docs/evidencias/req-4.1.1.png)
 ![req-4.1.2.png](cinema-management/docs/evidencias/req-4.1.2.png)
 ---
+
 
 ### 4.3 — Redirecionamento HTTP → HTTPS (requisito intermediário)
 
@@ -505,6 +510,45 @@ docker start cinema-management-api
 ![req-4.4.2.png](cinema-management/docs/evidencias/req-4.4.2.png)
 ---
 
+### 5.1 — Balanceamento de Carga entre 2 instâncias (requisito opcional)
+
+**O que foi feito:** O Nginx distribui as requisições entre duas instâncias da API (`api1` e `api2`) usando o algoritmo `round-robin`. As duas instâncias compartilham o mesmo banco H2 em arquivo via volume Docker (`h2-data`), garantindo consistência dos dados.
+
+**Onde está configurado:**
+- `nginx.conf` → bloco `upstream cinema-api` com `round-robin` (padrão), `server api1:8080`, `server api2:8080` e `keepalive 32`
+- `docker-compose.yml` → serviços `api1` e `api2` com volume `h2-data:/data/h2`
+- `src/main/resources/application-docker.yml` → datasource com `jdbc:h2:file:/data/h2/cinema_db;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE`
+
+**Por que `round-robin` e não `least_conn`?**
+O `round-robin` (padrão do Nginx) alterna entre os servidores de forma sequencial: req 1 → api1, req 2 → api2, req 3 → api1... Isso torna a distribuição **previsível e visível** nos testes.
+
+**Por que `AUTO_SERVER=TRUE` no H2?**
+O H2 em modo arquivo normalmente bloqueia o acesso de uma segunda JVM. O `AUTO_SERVER=TRUE` faz o H2 iniciar um servidor TCP interno que coordena o acesso concorrente entre `api1` e `api2` ao mesmo arquivo de banco.
+
+**Teste — verificar distribuição entre instâncias:**
+
+> ⚠️ O teste **deve usar um endpoint autenticado** (com `Authorization: Bearer`), pois o Nginx está configurado para fazer `BYPASS` do cache quando há token. Sem autenticação, o `GET /movies` seria servido do cache a partir da 2ª requisição e o `X-Upstream-Instance` retornaria vazio — não provando balanceamento algum.
+
+```bash
+# 1. Obter token JWT
+TOKEN=$(curl -k -s -X POST "https://localhost/auth/login?username=admin")
+
+# 2. Disparar 8 requisições autenticadas e observar qual instância responde cada uma
+# (Authorization no header força BYPASS do cache → toda requisição vai ao upstream)
+for i in $(seq 1 8); do
+  curl -k -s -o /dev/null \
+    -H "Authorization: Bearer $TOKEN" \
+    -w "Req $i → Instância: %header{x-upstream-instance}\n" \
+    https://localhost/movies
+done
+```
+
+**Evidência esperada:** As requisições alternam **perfeitamente** entre `api1` e `api2` (round-robin):
+
+![req-5.1.png](cinema-management/docs/evidencias/req-5.1.png)```
+
+---
+
 ## Resumo dos requisitos implementados
 
 | Requisito | Status | Seção no nginx.conf |
@@ -518,6 +562,7 @@ docker start cinema-management-api
 | **4.1** Cache de GET (intermediário) | ✅ | `proxy_cache_path` + `proxy_cache` + `proxy_cache_bypass` |
 | **4.3** HTTPS / Redirect HTTP→HTTPS (intermediário) | ✅ | `return 308 https://` + `ssl_certificate` |
 | **4.4** Custom Error Pages (requisito intermediário) | ✅ | `error_page` + `location /error_pages/` |
+| **5.1** Balanceamento de carga 2 instâncias (opcional) | ✅ | `upstream round-robin` + `api1` + `api2` + volume `h2-data` |
 
 ---
 
@@ -598,6 +643,9 @@ cinema-management/
 │       └── error.log
 └── src/
     └── main/
+        └── resources/
+            ├── application.yml             # Configuração padrão (H2 in-memory)
+            └── application-docker.yml      # Perfil Docker (H2 em arquivo, AUTO_SERVER)
         └── java/org/example/cinemamanagement/
             ├── CinemaManagementApplication.java
             ├── infrastructure/security/   # JWT + Spring Security

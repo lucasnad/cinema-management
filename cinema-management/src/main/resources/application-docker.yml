@@ -1,0 +1,27 @@
+# Perfil ativo quando SPRING_PROFILES_ACTIVE=docker (usado no docker-compose)
+#
+# Diferença do perfil padrão:
+#   - Banco H2 em ARQUIVO em vez de memória → /data/h2/cinema_db
+#   - O caminho /data/h2 é um volume Docker compartilhado entre api1 e api2,
+#     permitindo que ambas as instâncias enxerguem os mesmos dados.
+
+spring:
+  datasource:
+    url: jdbc:h2:file:/data/h2/cinema_db;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.H2Dialect
+
+  h2:
+    console:
+      enabled: false
+
+# ================= JWT =================
+jwt:
+  secret: celso-portioli-11-setembro-123456
+  expiration: 3600000 # 1h
