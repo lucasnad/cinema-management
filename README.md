@@ -291,10 +291,7 @@ curl http://localhost:8080/movies
 ```
 
 **Evidência esperada:**
-```
-[]                              (via https://localhost — funciona pelo Nginx)
-curl: (7) Failed to connect     (via localhost:8080 — porta não exposta)
-```
+![req-3.1.png](cinema-management/docs/evidencias/req-3.1.png)
 
 ---
 
@@ -315,7 +312,7 @@ X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 X-XSS-Protection: 1; mode=block
 ```
-
+![req-3.2.png](cinema-management/docs/evidencias/req-3.2.png)
 ---
 
 ### 3.3 — Rate Limiting
@@ -331,14 +328,16 @@ for i in $(seq 1 20); do
 done
 wait
 ```
-
 **Ou via script bash incluído no projeto:**
 ```bash
-bash test-rate-limit.sh
+# Usando o script de teste de rate limit
+```bash
+bash cinema-management/test-rate-limit.sh
 ```
 
 **Evidência esperada:** As primeiras ~11 requisições passam (HTTP 200 ou 401), as demais retornam **HTTP 429**.
 
+![req-3.3.png](cinema-management/docs/evidencias/req-3.3.png)
 ---
 
 ### 3.4 — Limite de Payload (1MB)
@@ -350,7 +349,7 @@ bash test-rate-limit.sh
 **Teste — enviar payload > 1MB:**
 ```bash
 # Gera arquivo de ~2MB
-dd if=/dev/zero bs=1M count=2 2>/dev/null | base64 > /tmp/big_payload.txt
+dd if=/dev/urandom bs=1M count=2 2>/dev/null | base64 > /tmp/big_payload.txt
 
 curl -k -X POST https://localhost/movies \
   -H "Content-Type: application/json" \
@@ -362,6 +361,7 @@ curl -k -X POST https://localhost/movies \
 ```
 HTTP Code: 413
 ```
+![req-3.4.png](cinema-management/docs/evidencias/req-3.4.png)
 
 ---
 
@@ -380,6 +380,7 @@ curl -k -H "Accept-Encoding: gzip" -I https://localhost/movies
 ```
 Content-Encoding: gzip
 ```
+![req-3.5.png](cinema-management/docs/evidencias/req-3.5.png)
 
 ---
 
@@ -405,9 +406,10 @@ docker logs cinema-nginx --tail 5
 
 **Evidência esperada:**
 ```
-IP: 172.18.0.1 | Metódo: GET | URI: /movies | Status: 200 | Tempo de resposta: 0.032s | Cache: MISS
+IP: 172.20.0.1 | Metódo: GET | URI: /movies | Status: 200 | Tempo de resposta: 0.032s | Cache: MISS
 ```
-
+![req-3.6.1.png](cinema-management/docs/evidencias/req-3.6.1.png)
+![req-3.6.2.png](cinema-management/docs/evidencias/req-3.6.2.png)
 ---
 
 ### 4.1 — Cache de GET (requisito intermediário)
@@ -438,7 +440,8 @@ X-Cache-Status: MISS
 X-Cache-Status: HIT
 X-Cache-Status: BYPASS
 ```
-
+![req-4.1.1.png](cinema-management/docs/evidencias/req-4.1.1.png)
+![req-4.1.2.png](cinema-management/docs/evidencias/req-4.1.2.png)
 ---
 
 ### 4.3 — Redirecionamento HTTP → HTTPS (requisito intermediário)
@@ -460,6 +463,7 @@ curl -v http://localhost/movies 2>&1 | grep -E "< HTTP|Location"
 < HTTP/1.1 301 Moved Permanently
 < Location: https://localhost/movies
 ```
+![req-4.3.png](cinema-management/docs/evidencias/req-4.3.1.png)
 
 **Teste — handshake SSL/TLS:**
 ```bash
@@ -471,6 +475,7 @@ curl -kv https://localhost/movies 2>&1 | grep -E "SSL|TLS|subject|issuer"
 * SSL connection using TLSv1.3
 * subject: C=BR; ST=SP; L=SaoPaulo; O=CinemaManagement; CN=localhost
 ```
+![req-4.3.2.png](cinema-management/docs/evidencias/req-4.3.2.png)
 
 ---
 
@@ -482,26 +487,29 @@ curl -kv https://localhost/movies 2>&1 | grep -E "SSL|TLS|subject|issuer"
 
 **Teste — erro 404:**
 ```bash
-curl -k https://localhost/rota-inexistente
+# Precisa do token pra dar 404 porque o Spring Security devolve 401 
+# antes de chegar no endpoint inexistente.
+TOKEN=$(curl -k -s -X POST "https://localhost/auth/login?username=admin")
+curl -k -H "Authorization: Bearer $TOKEN" https://localhost/rota-inexistente
 ```
 
 **Evidência esperada:**
-```html
-<h1>404</h1>
-<p>Página não encontrada.</p>
-```
+![req-4.4.1.png](cinema-management/docs/evidencias/req-4.4.1.png)
 
 **Teste — erro 500 (endpoint de teste):**
 ```bash
 curl -k https://localhost/test/500
 ```
-
-**Evidência esperada:**
-```html
-<h1>50x</h1>
-<p>Erro interno do servidor. Tente novamente em instantes.</p>
+** Ou teste 502 parando a API: **
+```bash
+docker stop cinema-management-api
+curl -k https://localhost/movies
+# Retorna 502 → Nginx serve a 50x.html
+docker start cinema-management-api
 ```
 
+**Evidência esperada:**
+![req-4.4.2.png](cinema-management/docs/evidencias/req-4.4.2.png)
 ---
 
 ## Resumo dos requisitos implementados
@@ -522,7 +530,7 @@ curl -k https://localhost/test/500
 
 ## Fluxo completo de teste (criar filme → criar sessão → comprar ingresso)
 
-> As entidades usam **UUID** como identificador. Os comandos abaixo capturam os IDs automaticamente com `jq`.
+> As entidades usam **UUID** como identificador. Os comandos abaixo capturam os IDs com `grep` + `sed`, disponíveis nativamente no Git Bash sem nenhuma instalação extra.
 
 ```bash
 # 1. Login (obter token JWT)
@@ -533,24 +541,26 @@ echo "Token: $TOKEN"
 MOVIE_ID=$(curl -k -s -X POST https://localhost/movies \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"title": "Interestelar", "durationInMinutes": 169}' | jq -r '.id')
+  -d '{"title": "Interestelar", "durationInMinutes": 169}' \
+  | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
 echo "Movie ID: $MOVIE_ID"
 
 # 3. Criar sessão para o filme (usa o UUID do filme)
 SESSION_ID=$(curl -k -s -X POST https://localhost/sessions \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"movieId\": \"$MOVIE_ID\", \"room\": \"Sala 1\", \"startsAt\": \"2026-12-31T20:00:00\"}" | jq -r '.id')
+  -d "{\"movieId\": \"$MOVIE_ID\", \"room\": \"Sala 1\", \"startsAt\": \"2026-12-31T20:00:00\"}" \
+  | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
 echo "Session ID: $SESSION_ID"
 
 # 4. Comprar ingresso (usa o UUID da sessão)
 curl -k -s -X POST https://localhost/tickets \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"sessionId\": \"$SESSION_ID\", \"seat\": \"A1\", \"customerName\": \"Lucas\"}" | jq
+  -d "{\"sessionId\": \"$SESSION_ID\", \"seat\": \"A1\", \"customerName\": \"Lucas\"}"
 
 # 5. Listar ingressos
-curl -k -s -H "Authorization: Bearer $TOKEN" https://localhost/tickets | jq
+curl -k -s -H "Authorization: Bearer $TOKEN" https://localhost/tickets
 ```
 
 ---

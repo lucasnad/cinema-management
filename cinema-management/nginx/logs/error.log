@@ -948,3 +948,4 @@
 2026/03/01 17:52:26 [error] 26#26: *12 client intended to send too large body: 2097163 bytes, client: 172.20.0.1, server: localhost, request: "POST /api/movies HTTP/1.1", host: "localhost"
 2026/03/01 18:02:33 [error] 21#21: *2 connect() failed (111: Connection refused) while connecting to upstream, client: 172.20.0.1, server: localhost, request: "POST /auth/login?username=lucasnad HTTP/1.1", upstream: "http://172.20.0.2:8080/auth/login?username=lucasnad", host: "localhost"
 2026/03/01 18:08:26 [emerg] 1#1: host not found in upstream "api:8080" in /etc/nginx/nginx.conf:63
+2026/03/02 12:10:19 [alert] 28#28: ignore long locked inactive cache entry 2edff75f4f599fa2b7dc904a8262f8ad, count:1

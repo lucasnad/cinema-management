@@ -1,7 +1,8 @@
 #!/bin/bash
 
-TOTAL=15
-URL="http://localhost/"
+TOTAL=20
+URL="https://localhost/movies"
+COUNT_200=0
 COUNT_401=0
 COUNT_429=0
 COUNT_OTHER=0
@@ -28,6 +29,7 @@ RESULTS_FILE="$TMPDIR_RES/results.txt"
 {
   for i in $(seq 1 $TOTAL); do
     printf 'url = "%s"\n' "$URL"
+    printf 'insecure\n'
     printf 'silent\n'
     printf 'output = "/dev/null"\n'
     printf 'write-out = "%%{http_code}\\n"\n'
@@ -45,7 +47,9 @@ curl --parallel --parallel-immediate --parallel-max $TOTAL \
 while IFS= read -r CODE; do
     CODE=$(echo "$CODE" | tr -d '[:space:]')
     [ -z "$CODE" ] && continue
-    if [ "$CODE" = "401" ]; then
+    if [ "$CODE" = "200" ]; then
+        COUNT_200=$((COUNT_200 + 1))
+    elif [ "$CODE" = "401" ]; then
         COUNT_401=$((COUNT_401 + 1))
     elif [ "$CODE" = "429" ]; then
         COUNT_429=$((COUNT_429 + 1))
@@ -54,14 +58,15 @@ while IFS= read -r CODE; do
     fi
 done < "$RESULTS_FILE"
 
-# Exibe as que passaram
-for i in $(seq 1 $COUNT_401); do
-    printf "  Req %02d → \033[0;32mHTTP 401  OK  (passou pelo nginx)\033[0m\n" $i
+# Exibe as que passaram (200 ou 401)
+COUNT_PASSED=$((COUNT_200 + COUNT_401))
+for i in $(seq 1 $COUNT_PASSED); do
+    printf "  Req %02d → \033[0;32mHTTP OK   (passou pelo nginx)\033[0m\n" $i
 done
 
 # Exibe as bloqueadas
 for i in $(seq 1 $COUNT_429); do
-    printf "  Req %02d → \033[0;31mHTTP 429  BLOQUEADO pelo rate limit\033[0m\n" $((COUNT_401 + i))
+    printf "  Req %02d → \033[0;31mHTTP 429  BLOQUEADO pelo rate limit\033[0m\n" $((COUNT_PASSED + i))
 done
 
 rm -rf "$TMPDIR_RES"
@@ -70,6 +75,7 @@ echo ""
 echo "=================================================="
 echo "                   RESULTADO                      "
 echo "=================================================="
+printf "  \033[0;32m✅ HTTP 200 (passou — endpoint público)\033[0m   : %d\n" $COUNT_200
 printf "  \033[0;32m✅ HTTP 401 (passou pelo rate limit)\033[0m  : %d\n" $COUNT_401
 printf "  \033[0;31m❌ HTTP 429 (bloqueado — limite atingido)\033[0m : %d\n" $COUNT_429
 [ $COUNT_OTHER -gt 0 ] && printf "  \033[0;33m⚠️  Outros\033[0m : %d\n" $COUNT_OTHER
