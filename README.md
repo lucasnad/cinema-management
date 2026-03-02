@@ -411,6 +411,7 @@ IP: 172.20.0.1 | Metódo: GET | URI: /movies | Status: 200 | Tempo de resposta: 
 IP: 172.20.0.1 | Metódo: GET | URI: /movies | Status: 200 | Tempo de resposta: CACHED | Cache: HIT | Instância: CACHED
 ```
 ![req-3.6.1.png](cinema-management/docs/evidencias/req-3.6.1.png)
+
 ![req-3.6.2.png](cinema-management/docs/evidencias/req-3.6.2.png)
 ---
 
@@ -442,8 +443,11 @@ X-Cache-Status: MISS
 X-Cache-Status: HIT
 X-Cache-Status: BYPASS
 ```
+
 ![req-4.1.1.png](cinema-management/docs/evidencias/req-4.1.1.png)
+
 ![req-4.1.2.png](cinema-management/docs/evidencias/req-4.1.2.png)
+
 ---
 
 
