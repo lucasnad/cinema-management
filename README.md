@@ -330,8 +330,6 @@ wait
 ```
 **Ou via script bash incluído no projeto:**
 ```bash
-# Usando o script de teste de rate limit
-```bash
 bash cinema-management/test-rate-limit.sh
 ```
 
@@ -446,24 +444,17 @@ X-Cache-Status: BYPASS
 
 ### 4.3 — Redirecionamento HTTP → HTTPS (requisito intermediário)
 
-**O que foi feito:** Servidor na porta 80 retorna `301 Moved Permanently` redirecionando para HTTPS. Certificado SSL self-signed gerado automaticamente no build do container Nginx.
+**O que foi feito:** Servidor na porta 80 retorna `308 Moved Permanently` redirecionando para HTTPS. Certificado SSL self-signed gerado automaticamente no build do container Nginx.
 
 **Onde está configurado:**
-- `nginx.conf` → bloco `server` porta 80 com `return 301 https://...`
+- `nginx.conf` → bloco `server` porta 80 com `return 308 https://...`
 - `nginx.conf` → bloco `server` porta 443 com `ssl_certificate` e `ssl_protocols TLSv1.2 TLSv1.3`
 - `nginx/Dockerfile` → geração do certificado via `openssl`
 
-**Teste — redirect 301:**
+**Teste — redirect 308:**
 ```bash
 curl -v http://localhost/movies 2>&1 | grep -E "< HTTP|Location"
 ```
-
-**Evidência esperada:**
-```
-< HTTP/1.1 301 Moved Permanently
-< Location: https://localhost/movies
-```
-![req-4.3.png](cinema-management/docs/evidencias/req-4.3.1.png)
 
 **Teste — handshake SSL/TLS:**
 ```bash
@@ -472,11 +463,13 @@ curl -kv https://localhost/movies 2>&1 | grep -E "SSL|TLS|subject|issuer"
 
 **Evidência esperada:**
 ```
+< HTTP/1.1 308 Moved Permanently
+< Location: https://localhost/movies
+
 * SSL connection using TLSv1.3
 * subject: C=BR; ST=SP; L=SaoPaulo; O=CinemaManagement; CN=localhost
 ```
-![req-4.3.2.png](cinema-management/docs/evidencias/req-4.3.2.png)
-
+![req-4.3.png](cinema-management/docs/evidencias/req-4.3.png)
 ---
 
 ### 4.4 — Custom Error Pages (requisito intermediário)
@@ -523,7 +516,7 @@ docker start cinema-management-api
 | **3.5** Compressão Gzip | ✅ | `gzip on` + `gzip_types` |
 | **3.6** Log Estruturado | ✅ | `log_format structured` |
 | **4.1** Cache de GET (intermediário) | ✅ | `proxy_cache_path` + `proxy_cache` + `proxy_cache_bypass` |
-| **4.3** HTTPS / Redirect HTTP→HTTPS (intermediário) | ✅ | `return 301 https://` + `ssl_certificate` |
+| **4.3** HTTPS / Redirect HTTP→HTTPS (intermediário) | ✅ | `return 308 https://` + `ssl_certificate` |
 | **4.4** Custom Error Pages (requisito intermediário) | ✅ | `error_page` + `location /error_pages/` |
 
 ---
